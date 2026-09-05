@@ -1,0 +1,599 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Tạo ScreenGui chính
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZenkaModernPanel"
+pcall(function()
+    ScreenGui.Parent = game:GetService("CoreGui")
+end)
+if not ScreenGui.Parent then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Bảng màu chủ đạo (Dark Mode + Accent Indigo)
+local COLORS = {
+    Background = Color3.fromRGB(18, 18, 22),
+    Sidebar = Color3.fromRGB(24, 24, 30),
+    Card = Color3.fromRGB(30, 30, 38),
+    Accent = Color3.fromRGB(88, 101, 242),
+    TextPrimary = Color3.fromRGB(240, 240, 245),
+    TextSecondary = Color3.fromRGB(150, 150, 165),
+    Border = Color3.fromRGB(45, 45, 58),
+    Success = Color3.fromRGB(46, 204, 113)
+}
+
+-- 1. Nút nổi thu nhỏ / mở menu (Floating Toggle Button)
+local FloatingBtn = Instance.new("TextButton")
+FloatingBtn.Name = "FloatingBtn"
+FloatingBtn.Parent = ScreenGui
+FloatingBtn.BackgroundColor3 = COLORS.Sidebar
+FloatingBtn.Position = UDim2.new(0.05, 0, 0.05, 0)
+FloatingBtn.Size = UDim2.new(0, 48, 0, 48)
+FloatingBtn.Text = "𓆩♡𓆪"
+FloatingBtn.TextColor3 = COLORS.Accent
+FloatingBtn.Font = Enum.Font.GothamBold
+FloatingBtn.TextSize = 22
+FloatingBtn.Visible = false
+
+local FloatCorner = Instance.new("UICorner")
+FloatCorner.CornerRadius = UDim.new(1, 0)
+FloatCorner.Parent = FloatingBtn
+
+local FloatStroke = Instance.new("UIStroke")
+FloatStroke.Color = COLORS.Border
+FloatStroke.Thickness = 1.5
+FloatStroke.Parent = FloatingBtn
+
+-- 2. Cửa sổ chính (Main Frame)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = COLORS.Background
+MainFrame.Position = UDim2.new(0.5, -240, 0.5, -160)
+MainFrame.Size = UDim2.new(0, 480, 0, 340)
+MainFrame.Active = true
+MainFrame.Draggable = false
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = COLORS.Border
+MainStroke.Thickness = 1.5
+MainStroke.Parent = MainFrame
+
+-- Thanh tiêu đề (TitleBar) dùng để kéo cửa sổ
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Parent = MainFrame
+TitleBar.BackgroundColor3 = COLORS.Sidebar
+TitleBar.Size = UDim2.new(1, 0, 0, 42)
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = TitleBar
+
+local TitleCover = Instance.new("Frame")
+TitleCover.Parent = TitleBar
+TitleCover.BackgroundColor3 = COLORS.Sidebar
+TitleCover.BorderSizePixel = 0
+TitleCover.Position = UDim2.new(0, 0, 0.5, 0)
+TitleCover.Size = UDim2.new(1, 0, 0.5, 0)
+
+local IconLabel = Instance.new("TextLabel")
+IconLabel.Parent = TitleBar
+IconLabel.BackgroundTransparency = 1
+IconLabel.Position = UDim2.new(0, 12, 0, 0)
+IconLabel.Size = UDim2.new(0, 30, 1, 0)
+IconLabel.Text = "𓆩♡𓆪"
+IconLabel.TextColor3 = COLORS.Accent
+IconLabel.Font = Enum.Font.GothamBold
+IconLabel.TextSize = 16
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Parent = TitleBar
+TitleText.BackgroundTransparency = 1
+TitleText.Position = UDim2.new(0, 42, 0, 0)
+TitleText.Size = UDim2.new(0, 200, 1, 0)
+TitleText.Text = "ZENKA PANEL  <font color='#FF0000' size='11'>hai29122012</font>"
+TitleText.RichText = true
+TitleText.TextColor3 = COLORS.TextPrimary
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextSize = 13
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Nút Thu Nhỏ (Minimize)
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Parent = TitleBar
+MinimizeBtn.BackgroundTransparency = 1
+MinimizeBtn.Position = UDim2.new(1, -76, 0, 0)
+MinimizeBtn.Size = UDim2.new(0, 36, 1, 0)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = COLORS.TextSecondary
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.TextSize = 16
+
+-- Nút Đóng (Close)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Parent = TitleBar
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Position = UDim2.new(1, -38, 0, 0)
+CloseBtn.Size = UDim2.new(0, 36, 1, 0)
+CloseBtn.Text = "×"
+CloseBtn.TextColor3 = COLORS.TextSecondary
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 18
+
+-- 3. Bố cục chính: Sidebar (Trái) & Nội dung (Phải)
+local ContentContainer = Instance.new("Frame")
+ContentContainer.Parent = MainFrame
+ContentContainer.BackgroundTransparency = 1
+ContentContainer.Position = UDim2.new(0, 0, 0, 42)
+ContentContainer.Size = UDim2.new(1, 0, 1, -42)
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Parent = ContentContainer
+Sidebar.BackgroundColor3 = COLORS.Sidebar
+Sidebar.Size = UDim2.new(0, 130, 1, 0)
+
+local SidebarLayout = Instance.new("UIListLayout")
+SidebarLayout.Parent = Sidebar
+SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarLayout.Padding = UDim.new(0, 4)
+
+local SidebarPadding = Instance.new("UIPadding")
+SidebarPadding.Parent = Sidebar
+SidebarPadding.PaddingTop = UDim.new(0, 8)
+SidebarPadding.PaddingLeft = UDim.new(0, 8)
+SidebarPadding.PaddingRight = UDim.new(0, 8)
+
+-- Container chứa các Tab Pages
+local PagesContainer = Instance.new("Frame")
+PagesContainer.Parent = ContentContainer
+PagesContainer.BackgroundTransparency = 1
+PagesContainer.Position = UDim2.new(0, 130, 0, 0)
+PagesContainer.Size = UDim2.new(1, -130, 1, 0)
+
+-- Tạo các trang (Tabs)
+local tabs = {"Home", "Player", "Visual", "Settings"}
+local tabButtons = {}
+local tabPages = {}
+
+for i, tabName in ipairs(tabs) do
+    local btn = Instance.new("TextButton")
+    btn.Name = tabName .. "Btn"
+    btn.Parent = Sidebar
+    btn.BackgroundColor3 = (i == 1) and COLORS.Card or Color3.new(0,0,0)
+    btn.BackgroundTransparency = (i == 1) and 0 or 1
+    btn.Size = UDim2.new(1, 0, 0, 38)
+    btn.Text = "  " .. (tabName == "Home" and "🏠 " or tabName == "Player" and "👤 " or tabName == "Visual" and "👁 " or "⚙ ") .. tabName
+    btn.TextColor3 = (i == 1) and COLORS.TextPrimary or COLORS.TextSecondary
+    btn.Font = Enum.Font.GothamMedium
+    btn.TextSize, btn.TextXAlignment = 12, Enum.TextXAlignment.Left
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+    
+    tabButtons[tabName] = btn
+    
+    local page = Instance.new("ScrollingFrame")
+    page.Name = tabName .. "Page"
+    page.Parent = PagesContainer
+    page.BackgroundTransparency = 1
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.ScrollBarThickness = 3
+    page.Visible = (i == 1)
+    
+    local pageLayout = Instance.new("UIListLayout")
+    pageLayout.Parent = page
+    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pageLayout.Padding = UDim.new(0, 10)
+    
+    local pagePadding = Instance.new("UIPadding")
+    pagePadding.Parent = page
+    pagePadding.PaddingTop = UDim.new(0, 12)
+    pagePadding.PaddingLeft = UDim.new(0, 12)
+    pagePadding.PaddingRight = UDim.new(0, 12)
+    pagePadding.PaddingBottom = UDim.new(0, 12)
+    
+    tabPages[tabName] = page
+end
+
+-- --- TAB 1: HOME ---
+local homeWelcome = Instance.new("TextLabel")
+homeWelcome.Parent = tabPages["Home"]
+homeWelcome.BackgroundTransparency = 1
+homeWelcome.Size = UDim2.new(1, 0, 0, 60)
+homeWelcome.Text = "ℂ𝕙𝕒̀𝕠 𝕞𝕦̛̀𝕟𝕘 𝕥𝕣𝕠̛̉ 𝕝𝕒̣𝕚, ℤ𝕖𝕟𝕜𝕒!!!\n<font color='#9696A5' size='11'> Chọn một danh mục ở bên trái và sử dụng ngay nào!! </font>"
+homeWelcome.RichText = true
+homeWelcome.TextColor3 = COLORS.TextPrimary
+homeWelcome.Font = Enum.Font.GothamBold
+homeWelcome.TextSize, homeWelcome.TextXAlignment = 13, Enum.TextXAlignment.Left
+
+-- --- TAB 2: PLAYER (Hitbox & WalkSpeed) ---
+-- 1. Hitbox Card
+local hitboxCard = Instance.new("Frame")
+hitboxCard.Parent = tabPages["Player"]
+hitboxCard.BackgroundColor3 = COLORS.Card
+hitboxCard.Size = UDim2.new(1, 0, 0, 85)
+
+local hbCorner = Instance.new("UICorner")
+hbCorner.CornerRadius = UDim.new(0, 8)
+hbCorner.Parent = hitboxCard
+
+local hbTitle = Instance.new("TextLabel")
+hbTitle.Parent = hitboxCard
+hbTitle.BackgroundTransparency = 1
+hbTitle.Position = UDim2.new(0, 12, 0, 8)
+hbTitle.Size = UDim2.new(1, -24, 0, 20)
+hbTitle.Text = "Hitbox Extender (0 - 100)"
+hbTitle.TextColor3 = COLORS.TextPrimary
+hbTitle.Font = Enum.Font.GothamBold
+hbTitle.TextSize, hbTitle.TextXAlignment = 12, Enum.TextXAlignment.Left
+
+local hbValueLabel = Instance.new("TextLabel")
+hbValueLabel.Parent = hitboxCard
+hbValueLabel.BackgroundTransparency = 1
+hbValueLabel.Position = UDim2.new(1, -100, 0, 8)
+hbValueLabel.Size = UDim2.new(0, 88, 0, 20)
+hbValueLabel.Text = "Size: 0"
+hbValueLabel.TextColor3 = COLORS.Accent
+hbValueLabel.Font = Enum.Font.GothamBold
+hbValueLabel.TextSize, hbValueLabel.TextXAlignment = 12, Enum.TextXAlignment.Right
+
+local SliderBg = Instance.new("Frame")
+SliderBg.Parent = hitboxCard
+SliderBg.BackgroundColor3 = COLORS.Border
+SliderBg.Position = UDim2.new(0, 12, 0, 45)
+SliderBg.Size = UDim2.new(1, -24, 0, 8)
+
+local sBgCorner = Instance.new("UICorner")
+sBgCorner.CornerRadius = UDim.new(1, 0)
+sBgCorner.Parent = SliderBg
+
+local SliderFill = Instance.new("Frame")
+SliderFill.Parent = SliderBg
+SliderFill.BackgroundColor3 = COLORS.Accent
+SliderFill.Size = UDim2.new(0, 0, 1, 0)
+
+local sFillCorner = Instance.new("UICorner")
+sFillCorner.CornerRadius = UDim.new(1, 0)
+sFillCorner.Parent = SliderFill
+
+local SliderKnob = Instance.new("Frame")
+SliderKnob.Parent = SliderBg
+SliderKnob.BackgroundColor3 = COLORS.TextPrimary
+SliderKnob.Position = UDim2.new(0, -6, 0.5, -6)
+SliderKnob.Size = UDim2.new(0, 12, 0, 12)
+
+local sKnobCorner = Instance.new("UICorner")
+sKnobCorner.CornerRadius = UDim.new(1, 0)
+sKnobCorner.Parent = SliderKnob
+
+-- 2. WalkSpeed Card (0 - 1000)
+local wsCard = Instance.new("Frame")
+wsCard.Parent = tabPages["Player"]
+wsCard.BackgroundColor3 = COLORS.Card
+wsCard.Size = UDim2.new(1, 0, 0, 85)
+
+local wsCardCorner = Instance.new("UICorner")
+wsCardCorner.CornerRadius = UDim.new(0, 8)
+wsCardCorner.Parent = wsCard
+
+local wsTitle = Instance.new("TextLabel")
+wsTitle.Parent = wsCard
+wsTitle.BackgroundTransparency = 1
+wsTitle.Position = UDim2.new(0, 12, 0, 8)
+wsTitle.Size = UDim2.new(1, -24, 0, 20)
+wsTitle.Text = "WalkSpeed (0 - 1000)"
+wsTitle.TextColor3 = COLORS.TextPrimary
+wsTitle.Font = Enum.Font.GothamBold
+wsTitle.TextSize, wsTitle.TextXAlignment = 12, Enum.TextXAlignment.Left
+
+local wsValueLabel = Instance.new("TextLabel")
+wsValueLabel.Parent = wsCard
+wsValueLabel.BackgroundTransparency = 1
+wsValueLabel.Position = UDim2.new(1, -100, 0, 8)
+wsValueLabel.Size = UDim2.new(0, 88, 0, 20)
+wsValueLabel.Text = "Speed: 16"
+wsValueLabel.TextColor3 = COLORS.Accent
+wsValueLabel.Font = Enum.Font.GothamBold
+wsValueLabel.TextSize, wsValueLabel.TextXAlignment = 12, Enum.TextXAlignment.Right
+
+local WsSliderBg = Instance.new("Frame")
+WsSliderBg.Parent = wsCard
+WsSliderBg.BackgroundColor3 = COLORS.Border
+WsSliderBg.Position = UDim2.new(0, 12, 0, 45)
+WsSliderBg.Size = UDim2.new(1, -24, 0, 8)
+
+local wsBgCorner = Instance.new("UICorner")
+wsBgCorner.CornerRadius = UDim.new(1, 0)
+wsBgCorner.Parent = WsSliderBg
+
+local WsSliderFill = Instance.new("Frame")
+WsSliderFill.Parent = WsSliderBg
+WsSliderFill.BackgroundColor3 = COLORS.Accent
+-- Khởi tạo mặc định ở tốc độ 16 (~1.6%)
+WsSliderFill.Size = UDim2.new(16/1000, 0, 1, 0)
+
+local wsFillCorner = Instance.new("UICorner")
+wsFillCorner.CornerRadius = UDim.new(1, 0)
+wsFillCorner.Parent = WsSliderFill
+
+local WsSliderKnob = Instance.new("Frame")
+WsSliderKnob.Parent = WsSliderBg
+WsSliderKnob.BackgroundColor3 = COLORS.TextPrimary
+WsSliderKnob.Position = UDim2.new(16/1000, -6, 0.5, -6)
+WsSliderKnob.Size = UDim2.new(0, 12, 0, 12)
+
+local wsKnobCorner = Instance.new("UICorner")
+wsKnobCorner.CornerRadius = UDim.new(1, 0)
+wsKnobCorner.Parent = WsSliderKnob
+
+-- --- TAB 3: VISUAL (ESP) ---
+local espCard = Instance.new("Frame")
+espCard.Parent = tabPages["Visual"]
+espCard.BackgroundColor3 = COLORS.Card
+espCard.Size = UDim2.new(1, 0, 0, 50)
+
+local espCorner = Instance.new("UICorner")
+espCorner.CornerRadius = UDim.new(0, 8)
+espCorner.Parent = espCard
+
+local espTitle = Instance.new("TextLabel")
+espTitle.Parent = espCard
+espTitle.BackgroundTransparency = 1
+espTitle.Position = UDim2.new(0, 12, 0, 0)
+espTitle.Size = UDim2.new(0, 200, 1, 0)
+espTitle.Text = "Player ESP Highlight"
+espTitle.TextColor3 = COLORS.TextPrimary
+espTitle.Font = Enum.Font.GothamMedium
+espTitle.TextSize, espTitle.TextXAlignment = 12, Enum.TextXAlignment.Left
+
+local EspToggleBtn = Instance.new("TextButton")
+EspToggleBtn.Parent = espCard
+EspToggleBtn.BackgroundColor3 = COLORS.Border
+EspToggleBtn.Position = UDim2.new(1, -64, 0.5, -14)
+EspToggleBtn.Size = UDim2.new(0, 52, 0, 28)
+EspToggleBtn.Text = "OFF"
+EspToggleBtn.TextColor3 = COLORS.TextSecondary
+EspToggleBtn.Font = Enum.Font.GothamBold
+EspToggleBtn.TextSize = 11
+
+local tCorner = Instance.new("UICorner")
+tCorner.CornerRadius = UDim.new(1, 0)
+tCorner.Parent = EspToggleBtn
+
+-- --- TAB 4: SETTINGS ---
+local settingsCard = Instance.new("Frame")
+settingsCard.Parent = tabPages["Settings"]
+settingsCard.BackgroundColor3 = COLORS.Card
+settingsCard.Size = UDim2.new(1, 0, 0, 60)
+
+local setCorner = Instance.new("UICorner")
+setCorner.CornerRadius = UDim.new(0, 8)
+setCorner.Parent = settingsCard
+
+local setInfo = Instance.new("TextLabel")
+setInfo.Parent = settingsCard
+setInfo.BackgroundTransparency = 1
+setInfo.Position = UDim2.new(0, 12, 0, 0)
+setInfo.Size = UDim2.new(1, -24, 1, 0)
+setInfo.Text = "Zenka Panel 3.6\n<font color='#9696A5' size='11'>Script creator by hai29122012.</font>"
+setInfo.RichText = true
+setInfo.TextColor3 = COLORS.TextPrimary
+setInfo.Font = Enum.Font.GothamMedium
+setInfo.TextSize, setInfo.TextXAlignment = 12, Enum.TextXAlignment.Left
+
+-- Logic Chuyển Tab Mượt Mà
+local currentTab = "Home"
+for name, btn in pairs(tabButtons) do
+    btn.MouseButton1Click:Connect(function()
+        if currentTab == name then return end
+        currentTab = name
+        
+        for tName, page in pairs(tabPages) do
+            local targetBtn = tabButtons[tName]
+            if tName == name then
+                page.Visible = true
+                TweenService:Create(targetBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0, BackgroundColor3 = COLORS.Card}):Play()
+                targetBtn.TextColor3 = COLORS.TextPrimary
+            else
+                page.Visible = false
+                TweenService:Create(targetBtn, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+                targetBtn.TextColor3 = COLORS.TextSecondary
+            end
+        end
+    end)
+end
+
+-- Biến Trạng Thái Chức Năng
+local draggingMain = false
+local draggingSliderHb = false
+local draggingSliderWs = false
+local dragStart, startPos
+
+local currentHitboxSize = 0
+local currentWalkSpeed = 16
+local espEnabled = false
+
+-- Logic Kéo Cửa Sổ (Drag Main Frame)
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingMain = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+-- Logic Cập Nhật Hitbox Slider (0-100)
+local function updateHitboxSlider(input)
+    local absolutePos = SliderBg.AbsolutePosition.X
+    local absoluteSize = SliderBg.AbsoluteSize.X
+    local relativeX = math.clamp(input.Position.X - absolutePos, 0, absoluteSize)
+    local percentage = relativeX / absoluteSize
+    
+    SliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+    SliderKnob.Position = UDim2.new(percentage, -6, 0.5, -6)
+    
+    currentHitboxSize = math.floor(percentage * 100)
+    hbValueLabel.Text = "Size: " .. currentHitboxSize
+end
+
+SliderBg.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSliderHb = true
+        updateHitboxSlider(input)
+    end
+end)
+
+SliderKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSliderHb = true
+    end
+end)
+
+-- Logic Cập Nhật WalkSpeed Slider (0-1000)
+local function updateWalkSpeedSlider(input)
+    local absolutePos = WsSliderBg.AbsolutePosition.X
+    local absoluteSize = WsSliderBg.AbsoluteSize.X
+    local relativeX = math.clamp(input.Position.X - absolutePos, 0, absoluteSize)
+    local percentage = relativeX / absoluteSize
+    
+    WsSliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+    WsSliderKnob.Position = UDim2.new(percentage, -6, 0.5, -6)
+    
+    currentWalkSpeed = math.floor(percentage * 1000)
+    wsValueLabel.Text = "Speed: " .. currentWalkSpeed
+end
+
+WsSliderBg.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSliderWs = true
+        updateWalkSpeedSlider(input)
+    end
+end)
+
+WsSliderKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSliderWs = true
+    end
+end)
+
+-- Xử lý kết thúc tương tác cảm ứng/chuột chung
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSliderHb = false
+        draggingSliderWs = false
+        draggingMain = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if draggingSliderHb then
+            updateHitboxSlider(input)
+        elseif draggingSliderWs then
+            updateWalkSpeedSlider(input)
+        elseif draggingMain then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end
+end)
+
+-- Nút Thu Nhỏ / Đóng Panel
+MinimizeBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    FloatingBtn.Visible = true
+end)
+
+FloatingBtn.MouseButton1Click:Connect(function()
+    FloatingBtn.Visible = false
+    MainFrame.Visible = true
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+-- Logic ESP Toggle
+EspToggleBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    if espEnabled then
+        EspToggleBtn.BackgroundColor3 = COLORS.Success
+        EspToggleBtn.TextColor3 = COLORS.TextPrimary
+        EspToggleBtn.Text = "ON"
+    else
+        EspToggleBtn.BackgroundColor3 = COLORS.Border
+        EspToggleBtn.TextColor3 = COLORS.TextSecondary
+        EspToggleBtn.Text = "OFF"
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character then
+                local hl = player.Character:FindFirstChild("ZenkaPanelESP")
+                if hl then hl:Destroy() end
+            end
+        end
+    end
+end)
+
+-- Vòng lặp tối ưu cập nhật WalkSpeed, Hitbox & ESP
+RunService.RenderStepped:Connect(function()
+    -- Cập nhật WalkSpeed cho LocalPlayer
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum and hum.Health > 0 then
+            hum.WalkSpeed = currentWalkSpeed
+        end
+    end
+
+    -- Cập nhật Hitbox và ESP cho những người chơi khác
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            
+            if root and hum and hum.Health > 0 then
+                if currentHitboxSize > 0 then
+                    root.Size = Vector3.new(2, 2, 1) * (1 + currentHitboxSize * 0.35)
+                    root.Transparency = 0.6
+                    root.CanCollide = false
+                else
+                    root.Size = Vector3.new(2, 2, 1)
+                    root.Transparency = 1
+                end
+            end
+
+            if espEnabled then
+                if hum and hum.Health > 0 then
+                    local hl = char:FindFirstChild("ZenkaPanelESP")
+                    if not hl then
+                        hl = Instance.new("Highlight")
+                        hl.Name = "ZenkaPanelESP"
+                        hl.Adornee = char
+                        hl.Parent = char
+                        hl.FillColor = COLORS.Accent
+                        hl.OutlineColor = COLORS.TextPrimary
+                        hl.FillTransparency = 0.5
+                        hl.OutlineTransparency = 0
+                    end
+                else
+                    local hl = char:FindFirstChild("ZenkaPanelESP")
+                    if hl then hl:Destroy() end
+                end
+            else
+                local hl = char:FindFirstChild("ZenkaPanelESP")
+                if hl then hl:Destroy() end
+            end
+        end
+    end
+end)
