@@ -1,7 +1,7 @@
 if _G.MAMBO_ANTILAG_LOCKED then
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "[MAMBO PROJECT]",
+            Title = "[HoangHai PROJECT]",
             Text = "Nah 😡 (Alr running)",
             Duration = 3
         })
@@ -16,7 +16,7 @@ end
 if not valid then
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "[MAMBO PROJECT]",
+            Title = "[HoangHai PROJECT]",
             Text = "Đéo phải game này tk ngu",
             Duration = 3
         })
@@ -233,10 +233,10 @@ if not _G.MAMBO_ANTILAG_LOADED then
     local logoImg = nil
     pcall(function()
         local folder = "HoangHai"
-        local path = folder .. "/MAMBO_logo.png"
+        local path = folder .. "/IMG_20260909_201222.png"
         if not isfolder(folder) then makefolder(folder) end
         if not isfile(path) then
-            writefile(path, game:HttpGet("https://raw.githubusercontent.com/HaTapLamScript/MAMBO-PROJECT/main/Script/MAMBO_logo.png"))
+            writefile(path, game:HttpGet("https://raw.githubusercontent.com/haione-12/haione/refs/heads/main/IMG_20260909_201222.png"))
         end
         if getcustomasset then
             logoImg = getcustomasset(path)
@@ -255,7 +255,7 @@ if not _G.MAMBO_FFLAGS_APPLIED then
     local StarterGui = game:GetService("StarterGui")
     local logoImg = nil
     pcall(function()
-        local folder = "MAMBO_PROJECT"
+        local folder = "HoangHai"
         local path = folder .. "/MAMBO_logo.png"
         if getcustomasset then logoImg = getcustomasset(path) end
     end)
@@ -357,7 +357,7 @@ if not _G.MAMBO_FFLAGS_APPLIED then
     titleLabel.Size = UDim2.new(1, -48, 1, 0)
     titleLabel.Position = UDim2.new(0, 44, 0, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "[MAMBO PROJECT]"
+    titleLabel.Text = "[HoangHai]"
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
     titleLabel.Font = Enum.Font.Code
     titleLabel.TextSize = 16
@@ -383,7 +383,7 @@ if not _G.MAMBO_FFLAGS_APPLIED then
     yesBtn.Position = UDim2.new(0, 0, 0, 0)
     yesBtn.BackgroundColor3 = Color3.fromRGB(20, 50, 20)
     yesBtn.TextColor3 = Color3.fromRGB(0, 255, 0)
-    yesBtn.Text = "Yes"
+    yesBtn.Text = "Có"
     yesBtn.Font = Enum.Font.Code
     yesBtn.TextSize = 16
     yesBtn.BorderSizePixel = 0
@@ -401,7 +401,7 @@ if not _G.MAMBO_FFLAGS_APPLIED then
     noBtn.Position = UDim2.new(0.55, 0, 0, 0)
     noBtn.BackgroundColor3 = Color3.fromRGB(50, 20, 20)
     noBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
-    noBtn.Text = "No"
+    noBtn.Text = "Đéo"
     noBtn.Font = Enum.Font.Code
     noBtn.TextSize = 16
     noBtn.BorderSizePixel = 0
@@ -421,7 +421,7 @@ if not _G.MAMBO_FFLAGS_APPLIED then
         gui:Destroy()
         pcall(function()
             StarterGui:SetCore("SendNotification", {
-                Title = "[MAMBO PROJECT]",
+                Title = "[HoangHai]",
                 Text = statusText,
                 Duration = 2
             })
@@ -438,7 +438,7 @@ if not _G.MAMBO_FFLAGS_APPLIED then
             end)
             pcall(function()
                 StarterGui:SetCore("SendNotification", {
-                    Title = "[MAMBO PROJECT]",
+                    Title = "[HoangHai]",
                     Text = "Done! :D",
                     Duration = 3
                 })
