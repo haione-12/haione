@@ -1,0 +1,440 @@
+-- Luau | Executor script (tested assumption: Synapse X / KRNL / Script-Ware / Delta) | Fix Lag only
+-- Client-side only, no RemoteEvent/RemoteFunction, all loops gated by toggle flags, full restore cache
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local lp = Players.LocalPlayer
+
+----------------------------------------------------------------
+-- STATE
+----------------------------------------------------------------
+local current_level = 0          -- 0 = off, 1..4 = fix lag levels
+local running = true             -- master kill flag
+local cache = {}                 -- cache[instance] = { [propName] = oldValue }
+local connections = {}           -- all event connections, disconnected on shutdown
+
+local function track_conn(c)
+	table.insert(connections, c)
+end
+
+local function disconnect_all()
+	for _, c in ipairs(connections) do
+		pcall(function() c:Disconnect() end)
+	end
+	connections = {}
+end
+
+----------------------------------------------------------------
+-- CACHE / RESTORE
+----------------------------------------------------------------
+local function cache_prop(inst, prop, value)
+	cache[inst] = cache[inst] or {}
+	if cache[inst][prop] == nil then
+		cache[inst][prop] = value
+	end
+end
+
+local function set_prop(inst, prop, newValue)
+	local ok, oldValue = pcall(function() return inst[prop] end)
+	if not ok then return end
+	cache_prop(inst, prop, oldValue)
+	pcall(function() inst[prop] = newValue end)
+end
+
+local function restore_all()
+	for inst, props in pairs(cache) do
+		if inst and inst.Parent then
+			for prop, value in pairs(props) do
+				pcall(function() inst[prop] = value end)
+			end
+		end
+	end
+	cache = {}
+	current_level = 0
+end
+
+----------------------------------------------------------------
+-- LEVEL APPLICATION (per-instance, called on existing + new descendants)
+----------------------------------------------------------------
+local EFFECT_CLASSES_L1 = {
+	ParticleEmitter = true, Trail = true, Beam = true,
+	Smoke = true, Fire = true, Sparkles = true,
+}
+local LIGHT_CLASSES_L2 = {
+	PointLight = true, SpotLight = true, SurfaceLight = true,
+}
+local POSTFX_CLASSES_L2 = {
+	BloomEffect = true, BlurEffect = true, SunRaysEffect = true,
+	ColorCorrectionEffect = true, DepthOfFieldEffect = true,
+}
+
+-- skip list: don't touch NPC/Hitbox/Terrain/gameplay UI
+local function is_protected(inst)
+	if inst:IsA("Terrain") then return true end
+	local n = inst.Name:lower()
+	if n:find("hitbox") or n:find("npc") then return true end
+	local model = inst:FindFirstAncestorOfClass("Model")
+	if model and (model:FindFirstChild("Humanoid")) then
+		-- part of an NPC/character rig -> skip material changes, but effects still ok to disable
+		return "character"
+	end
+	return false
+end
+
+local function apply_level1_instance(inst)
+	if EFFECT_CLASSES_L1[inst.ClassName] then
+		set_prop(inst, "Enabled", false)
+	end
+end
+
+local function apply_level2_instance(inst)
+	if LIGHT_CLASSES_L2[inst.ClassName] then
+		set_prop(inst, "Enabled", false)
+	end
+end
+
+local function apply_level3_instance(inst)
+	if inst:IsA("BasePart") then
+		local protected = is_protected(inst)
+		if protected ~= true and protected ~= "character" then
+			if inst.Material ~= Enum.Material.SmoothPlastic and inst.Material ~= Enum.Material.Plastic then
+				set_prop(inst, "Material", Enum.Material.SmoothPlastic)
+			end
+		end
+	end
+end
+
+local function apply_level4_instance(inst)
+	if inst:IsA("Decal") or inst:IsA("Texture") then
+		local protected = is_protected(inst)
+		if protected ~= true and protected ~= "character" then
+			set_prop(inst, "Transparency", 1)
+		end
+	end
+end
+
+-- dispatch: apply all levels up to current_level to one instance
+local function apply_current_level_to_instance(inst)
+	if current_level >= 1 then apply_level1_instance(inst) end
+	if current_level >= 2 then apply_level2_instance(inst) end
+	if current_level >= 3 then apply_level3_instance(inst) end
+	if current_level >= 4 then apply_level4_instance(inst) end
+end
+
+----------------------------------------------------------------
+-- LIGHTING / WORKSPACE / TERRAIN GLOBAL SETTINGS PER LEVEL
+----------------------------------------------------------------
+local function apply_level2_lighting()
+	for _, inst in ipairs(Lighting:GetChildren()) do
+		if POSTFX_CLASSES_L2[inst.ClassName] then
+			set_prop(inst, "Enabled", false)
+		end
+	end
+end
+
+local function apply_level3_global()
+	set_prop(Lighting, "GlobalShadows", false)
+	set_prop(Lighting, "FogStart", 0)
+	set_prop(Lighting, "FogEnd", 300)
+end
+
+local function apply_level4_global()
+	pcall(function()
+		if Workspace.StreamingEnabled then
+			set_prop(Workspace, "StreamingTargetRadius", 128)
+		end
+	end)
+	local terrain = Workspace:FindFirstChildOfClass("Terrain")
+	if terrain then
+		set_prop(terrain, "WaterWaves", 0)
+		set_prop(terrain, "WaterReflectance", 0)
+	end
+end
+
+----------------------------------------------------------------
+-- FULL SWEEP (on level change) + NEW-INSTANCE HOOK
+----------------------------------------------------------------
+local function sweep_apply(level)
+	current_level = level
+	for _, inst in ipairs(Workspace:GetDescendants()) do
+		apply_current_level_to_instance(inst)
+	end
+	if level >= 2 then apply_level2_lighting() end
+	if level >= 3 then apply_level3_global() end
+	if level >= 4 then apply_level4_global() end
+end
+
+local function set_level(level)
+	if level == 0 then
+		restore_all()
+		return
+	end
+	-- restore first so stepping down (e.g. x3 -> x1) reverts higher-tier changes
+	restore_all()
+	sweep_apply(level)
+end
+
+local function hook_new_descendants()
+	track_conn(game.DescendantAdded:Connect(function(inst)
+		if not running then return end
+		if current_level >= 1 and inst:IsDescendantOf(Workspace) then
+			apply_current_level_to_instance(inst)
+		end
+	end))
+end
+
+----------------------------------------------------------------
+-- GUI
+----------------------------------------------------------------
+local gui = Instance.new("ScreenGui")
+gui.Name = "FixLagGui"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+pcall(function() gui.Parent = game:GetService("CoreGui") end)
+if not gui.Parent then gui.Parent = lp:WaitForChild("PlayerGui") end
+
+local frame = Instance.new("Frame")
+frame.Name = "Main"
+frame.Size = UDim2.new(0, 230, 0, 230)
+frame.Position = UDim2.new(0, 40, 0, 120)
+frame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Parent = gui
+
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 8)
+
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 34)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = frame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+
+local logo = Instance.new("ImageLabel")
+logo.Name = "Logo"
+logo.Size = UDim2.new(0, 26, 0, 26)
+logo.Position = UDim2.new(0, 4, 0, 4)
+logo.BackgroundTransparency = 1
+logo.Image = "https://raw.githubusercontent.com/haione-12/haione/refs/heads/main/IMG_20260909_201222.png"
+logo.Parent = titleBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.BackgroundTransparency = 1
+titleLabel.Size = UDim2.new(1, -90, 1, 0)
+titleLabel.Position = UDim2.new(0, 36, 0, 0)
+titleLabel.Text = "Fix Lag"
+titleLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 14
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 26, 0, 26)
+minimizeBtn.Position = UDim2.new(1, -62, 0, 4)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+minimizeBtn.Text = "-"
+minimizeBtn.TextColor3 = Color3.fromRGB(230, 230, 230)
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.TextSize = 16
+minimizeBtn.Parent = titleBar
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 6)
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 26, 0, 26)
+closeBtn.Position = UDim2.new(1, -30, 0, 4)
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 16
+closeBtn.Parent = titleBar
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+local body = Instance.new("Frame")
+body.Name = "Body"
+body.Size = UDim2.new(1, -16, 1, -46)
+body.Position = UDim2.new(0, 8, 0, 40)
+body.BackgroundTransparency = 1
+body.Parent = frame
+
+local levelLabel = Instance.new("TextLabel")
+levelLabel.BackgroundTransparency = 1
+levelLabel.Size = UDim2.new(1, 0, 0, 18)
+levelLabel.Text = "Mức Fix Lag:"
+levelLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+levelLabel.Font = Enum.Font.Gotham
+levelLabel.TextSize = 13
+levelLabel.TextXAlignment = Enum.TextXAlignment.Left
+levelLabel.Parent = body
+
+local btnRow = Instance.new("Frame")
+btnRow.Size = UDim2.new(1, 0, 0, 36)
+btnRow.Position = UDim2.new(0, 0, 0, 20)
+btnRow.BackgroundTransparency = 1
+btnRow.Parent = body
+
+local layout = Instance.new("UIListLayout", btnRow)
+layout.FillDirection = Enum.FillDirection.Horizontal
+layout.Padding = UDim.new(0, 6)
+
+local levelButtons = {}
+local function make_level_button(n)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0, 46, 1, 0)
+	b.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+	b.Text = "x" .. n .. (n == 4 and "+" or "")
+	b.TextColor3 = Color3.fromRGB(220, 220, 220)
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 13
+	b.Parent = btnRow
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+	levelButtons[n] = b
+	return b
+end
+for i = 1, 4 do make_level_button(i) end
+
+local function refresh_highlight()
+	for n, b in pairs(levelButtons) do
+		if n == current_level then
+			b.BackgroundColor3 = Color3.fromRGB(70, 140, 90)
+		else
+			b.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+		end
+	end
+end
+
+for n, b in pairs(levelButtons) do
+	b.MouseButton1Click:Connect(function()
+		if not running then return end
+		set_level(n)
+		refresh_highlight()
+	end)
+end
+
+local restoreBtn = Instance.new("TextButton")
+restoreBtn.Size = UDim2.new(1, 0, 0, 30)
+restoreBtn.Position = UDim2.new(0, 0, 0, 64)
+restoreBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+restoreBtn.Text = "Restore gốc"
+restoreBtn.TextColor3 = Color3.fromRGB(230, 230, 230)
+restoreBtn.Font = Enum.Font.GothamBold
+restoreBtn.TextSize = 13
+restoreBtn.Parent = body
+Instance.new("UICorner", restoreBtn).CornerRadius = UDim.new(0, 6)
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.BackgroundTransparency = 1
+statusLabel.Size = UDim2.new(1, 0, 0, 40)
+statusLabel.Position = UDim2.new(0, 0, 0, 104)
+statusLabel.Text = "Trạng thái: Tắt"
+statusLabel.TextWrapped = true
+statusLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 12
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.TextYAlignment = Enum.TextYAlignment.Top
+statusLabel.Parent = body
+
+local function update_status()
+	statusLabel.Text = current_level == 0 and "Trạng thái: Tắt" or ("Trạng thái: Đang bật x" .. current_level)
+end
+
+restoreBtn.MouseButton1Click:Connect(function()
+	restore_all()
+	refresh_highlight()
+	update_status()
+end)
+
+-- wrap level setters to also update status
+local raw_set_level = set_level
+set_level = function(n)
+	raw_set_level(n)
+	update_status()
+end
+for n, b in pairs(levelButtons) do
+	b.MouseButton1Click:Disconnect
+end
+for n, b in pairs(levelButtons) do
+	b.MouseButton1Click:Connect(function()
+		if not running then return end
+		set_level(n)
+		refresh_highlight()
+	end)
+end
+
+----------------------------------------------------------------
+-- MINIMIZE / CLOSE
+----------------------------------------------------------------
+local minimized = false
+local expandedSize = frame.Size
+minimizeBtn.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	if minimized then
+		body.Visible = false
+		frame.Size = UDim2.new(0, 230, 0, 34)
+		minimizeBtn.Text = "+"
+	else
+		body.Visible = true
+		frame.Size = expandedSize
+		minimizeBtn.Text = "-"
+	end
+end)
+
+local function full_shutdown()
+	running = false
+	restore_all()
+	disconnect_all()
+	gui:Destroy()
+end
+
+closeBtn.MouseButton1Click:Connect(full_shutdown)
+
+----------------------------------------------------------------
+-- DRAG (desktop + mobile)
+----------------------------------------------------------------
+local dragging = false
+local dragStart, startPos
+
+local function input_began(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end
+
+local function input_changed(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStart
+		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end
+
+track_conn(titleBar.InputBegan:Connect(input_began))
+track_conn(UserInputService.InputChanged:Connect(input_changed))
+track_conn(UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end))
+
+----------------------------------------------------------------
+-- INIT
+----------------------------------------------------------------
+hook_new_descendants()
+refresh_highlight()
+update_status()
